@@ -81,7 +81,7 @@ int process_file(char *name) {
   };
 
   fclose(fp);
-
+  return 0;
 }
 
 /*
@@ -111,5 +111,4 @@ int main(int argc, char *argv[]) {
   for (i = 0; i < B; i++)
     for (j = 0; j < BOMB_ARGUMENTS; j++)
       printf("bombs[%d][%d] = %d\n", i, j, bombs[i][j]);
-
 }
