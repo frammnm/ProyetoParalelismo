@@ -1,4 +1,9 @@
-
+/* Archivo: BombingField.c
+ * Contiene toda la funcionalidad para el ejercicio A del proyecto.
+ * Autores: 
+   - Francisco Martinez  09-10502
+   - Gabriel Alvarez     09-10029
+*/ 
 
 #define TARGET_ARGUMENTS 3
 #define BOMB_ARGUMENTS 4
@@ -9,10 +14,25 @@
 #include <string.h>
 //#include "mpi.h"
 
+void process_line(int *array, char *line) {
+  char *token;
+  int i = 0;
+
+  token = strtok(line, " ");
+  array[i] = atoi(token);
+  i++;
+
+  while (token != NULL) {
+    token = strtok(NULL, " ");
+    array[i] = atoi(token);
+    i++;
+  }
+}
+
 main(int argc, char *argv[]) {
 
   FILE *fp;
-  int N, i, T, B, c, k;
+  int N, T, B, c, i, j;
   int **targets;
   int **bombs;
   char line[256];
@@ -23,7 +43,7 @@ main(int argc, char *argv[]) {
   };
 
   if ((fp = fopen(argv[1], "r")) == NULL) {
-    printf("The input file \"%s\" doesn't exists!\n", argv[1]);
+    printf("The input file \"%s\" doesn't exist!\n", argv[1]);
     return 0;
   };
 
@@ -36,46 +56,24 @@ main(int argc, char *argv[]) {
       targets = (int **) malloc(sizeof(int *) * T);
     } else {
       if (i < T) {
-        char *token;
-        int j = 0;
-        /* get the first token */
-        token = strtok(line, " ");
         targets[i] = (int *) malloc(sizeof(int) * TARGET_ARGUMENTS);
-        targets[i][j] = atoi(token);
-        j++;
-        /* walk through other tokens */
-        while (token != NULL) {
-          token = strtok(NULL, " ");
-          targets[i][j] = atoi(token);
-          j++;
-        }
+        process_line(targets[i], line);
         i++;
       } else if (i == T) {
-        k = 0;
+        j = 0;
         B = atoi(line);
         bombs = (int **) malloc(sizeof(int *) * B);
         i++;
       }
       else {
-        char *token;
-        int j = 0;
-        /* get the first token */
-        token = strtok(line, " ");
-        bombs[k] = (int *) malloc(sizeof(int) * BOMB_ARGUMENTS);
-        bombs[k][j] = atoi(token);
+        bombs[j] = (int *) malloc(sizeof(int) * BOMB_ARGUMENTS);
+        process_line(bombs[j], line);
         j++;
-        /* walk through other tokens */
-        while (token != NULL) {
-          token = strtok(NULL, " ");
-          bombs[k][j] = atoi(token);
-          j++;
-        }
-        k++;
       }
     }
     c++;
   };
-  int j;
+
   for (i = 0; i < T; i++)
     for (j = 0; j < TARGET_ARGUMENTS; j++)
       printf("targets[%d][%d] = %d\n", i, j, targets[i][j]);
@@ -85,13 +83,7 @@ main(int argc, char *argv[]) {
       printf("bombs[%d][%d] = %d\n", i, j, bombs[i][j]);
 
   printf("n = %d\n", N);
-  fclose(fp);
-  // while ((read = getline(&line, &len, fp)) != -1) {
-  //       printf("Retrieved line of length %zu :\n", read);
-  //       printf("%s", line);
-  // }
-
   
-
+  fclose(fp);
 
 }
