@@ -18,6 +18,38 @@ int N, T, B;
 int **targets;
 int **bombs;
 
+void process_line(int *array, char *line);
+int process_file(char *name);
+
+/*
+###############################################################################
+#############################         main         ############################
+###############################################################################
+*/
+int main(int argc, char *argv[]) {
+  int i, j;
+
+  if (argc != 2) {
+    printf("Invalid number of arguments!\n");
+    return 0;
+  }
+
+  if (process_file(argv[1]) == -1)
+    return 0;
+
+  printf("N = %d\n", N);
+  printf("T = %d\n", T);
+  printf("B = %d\n", B);
+
+  for (i = 0; i < T; i++)
+    for (j = 0; j < TARGET_ARGUMENTS; j++)
+      printf("targets[%d][%d] = %d\n", i, j, targets[i][j]);
+
+  for (i = 0; i < B; i++)
+    for (j = 0; j < BOMB_ARGUMENTS; j++)
+      printf("bombs[%d][%d] = %d\n", i, j, bombs[i][j]);
+}
+
 /*
 ###############################################################################
 #############################     process_line     ############################
@@ -82,33 +114,4 @@ int process_file(char *name) {
 
   fclose(fp);
   return 0;
-}
-
-/*
-###############################################################################
-#############################         main         ############################
-###############################################################################
-*/
-int main(int argc, char *argv[]) {
-  int i, j;
-
-  if (argc != 2) {
-    printf("Invalid number of arguments!\n");
-    return 0;
-  }
-
-  if (process_file(argv[1]) == -1)
-    return 0;
-
-  printf("N = %d\n", N);
-  printf("T = %d\n", T);
-  printf("B = %d\n", B);
-
-  for (i = 0; i < T; i++)
-    for (j = 0; j < TARGET_ARGUMENTS; j++)
-      printf("targets[%d][%d] = %d\n", i, j, targets[i][j]);
-
-  for (i = 0; i < B; i++)
-    for (j = 0; j < BOMB_ARGUMENTS; j++)
-      printf("bombs[%d][%d] = %d\n", i, j, bombs[i][j]);
 }
