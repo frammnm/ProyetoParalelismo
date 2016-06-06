@@ -14,6 +14,15 @@
 #include <string.h>
 //#include "mpi.h"
 
+int N, T, B;
+int **targets;
+int **bombs;
+
+/*
+###############################################################################
+#############################     process_line     ############################
+###############################################################################
+*/
 void process_line(int *array, char *line) {
   char *token;
   int i = 0;
@@ -29,22 +38,19 @@ void process_line(int *array, char *line) {
   }
 }
 
-main(int argc, char *argv[]) {
-
+/*
+###############################################################################
+#############################     process_file     ############################
+###############################################################################
+*/
+int process_file(char *name) {
   FILE *fp;
-  int N, T, B, c, i, j;
-  int **targets;
-  int **bombs;
   char line[256];
+  int c, i, j;
 
-  if (argc != 2) {
-    printf("Invalid number of arguments!\n");
-    return 0;
-  };
-
-  if ((fp = fopen(argv[1], "r")) == NULL) {
-    printf("The input file \"%s\" doesn't exist!\n", argv[1]);
-    return 0;
+  if ((fp = fopen(name, "r")) == NULL) {
+    printf("The input file \"%s\" doesn't exist!\n", name);
+    return -1;
   };
 
   c = 0;
@@ -74,6 +80,30 @@ main(int argc, char *argv[]) {
     c++;
   };
 
+  fclose(fp);
+
+}
+
+/*
+###############################################################################
+#############################         main         ############################
+###############################################################################
+*/
+int main(int argc, char *argv[]) {
+  int i, j;
+
+  if (argc != 2) {
+    printf("Invalid number of arguments!\n");
+    return 0;
+  }
+
+  if (process_file(argv[1]) == -1)
+    return 0;
+
+  printf("N = %d\n", N);
+  printf("T = %d\n", T);
+  printf("B = %d\n", B);
+
   for (i = 0; i < T; i++)
     for (j = 0; j < TARGET_ARGUMENTS; j++)
       printf("targets[%d][%d] = %d\n", i, j, targets[i][j]);
@@ -81,9 +111,5 @@ main(int argc, char *argv[]) {
   for (i = 0; i < B; i++)
     for (j = 0; j < BOMB_ARGUMENTS; j++)
       printf("bombs[%d][%d] = %d\n", i, j, bombs[i][j]);
-
-  printf("n = %d\n", N);
-  
-  fclose(fp);
 
 }
