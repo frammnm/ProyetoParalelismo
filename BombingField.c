@@ -15,10 +15,10 @@
 //#include "mpi.h"
 
 int N, T, B;
-int **targets;
-int **bombs;
+int *targets;
+int *bombs;
 
-void process_line(int *array, char *line);
+int process_line(int array[], char *line, int pos);
 int process_file(char *name);
 
 /*
@@ -41,13 +41,19 @@ int main(int argc, char *argv[]) {
   printf("T = %d\n", T);
   printf("B = %d\n", B);
 
-  for (i = 0; i < T; i++)
+  printf("\n");
+  for (i = 0; i < T; i++) {
     for (j = 0; j < TARGET_ARGUMENTS; j++)
-      printf("targets[%d][%d] = %d\n", i, j, targets[i][j]);
+      printf("targets[%d][%d] = %d ", i, j, targets[TARGET_ARGUMENTS * i + j]);
+    printf("\n");
+  }
 
-  for (i = 0; i < B; i++)
+  printf("\n");
+  for (i = 0; i < B; i++) {
     for (j = 0; j < BOMB_ARGUMENTS; j++)
-      printf("bombs[%d][%d] = %d\n", i, j, bombs[i][j]);
+      printf("bombs[%d][%d] = %d ", i, j, bombs[BOMB_ARGUMENTS * i + j]);
+    printf("\n");
+  }
 }
 
 /*
@@ -55,9 +61,9 @@ int main(int argc, char *argv[]) {
 #############################     process_line     ############################
 ###############################################################################
 */
-void process_line(int *array, char *line) {
+int process_line(int array[], char *line, int pos) {
   char *token;
-  int i = 0;
+  int i = pos;
 
   token = strtok(line, " ");
   array[i] = atoi(token);
@@ -68,6 +74,8 @@ void process_line(int *array, char *line) {
     array[i] = atoi(token);
     i++;
   }
+
+  return i-1;
 }
 
 /*
@@ -78,7 +86,7 @@ void process_line(int *array, char *line) {
 int process_file(char *name) {
   FILE *fp;
   char line[256];
-  int c, i, j;
+  int c, i, j, pos;
 
   if ((fp = fopen(name, "r")) == NULL) {
     printf("The input file \"%s\" doesn't exist!\n", name);
@@ -91,21 +99,21 @@ int process_file(char *name) {
     else if (c == 1) {
       T = atoi(line);
       i = 0;
-      targets = (int **) malloc(sizeof(int *) * T);
+      pos = 0;
+      targets = (int *) malloc(sizeof(int) * T * TARGET_ARGUMENTS);
     } else {
       if (i < T) {
-        targets[i] = (int *) malloc(sizeof(int) * TARGET_ARGUMENTS);
-        process_line(targets[i], line);
+        pos = process_line(targets, line, pos);
         i++;
       } else if (i == T) {
         j = 0;
+        pos = 0;
         B = atoi(line);
-        bombs = (int **) malloc(sizeof(int *) * B);
+        bombs = (int *) malloc(sizeof(int) * B * BOMB_ARGUMENTS);
         i++;
       }
       else {
-        bombs[j] = (int *) malloc(sizeof(int) * BOMB_ARGUMENTS);
-        process_line(bombs[j], line);
+        pos = process_line(bombs, line, pos);
         j++;
       }
     }
