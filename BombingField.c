@@ -71,7 +71,7 @@ int process_line(int array[], char *line, int pos) {
 
   while (token != NULL) {
     token = strtok(NULL, " ");
-    array[i] = atoi(token);
+    array[i] = token;
     i++;
   }
 
