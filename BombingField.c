@@ -12,11 +12,13 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <string.h>
+#include <assert.h>
 //#include "mpi.h"
 
 int N, T, B;
 int *targets;
 int *bombs;
+int **battleField;
 
 int process_line(int array[], char *line, int pos);
 int process_file(char *name);
@@ -28,6 +30,7 @@ int process_file(char *name);
 */
 int main(int argc, char *argv[]) {
   int i, j;
+  int yo, numProcesos;
 
   if (argc != 2) {
     printf("Invalid number of arguments!\n");
@@ -41,19 +44,32 @@ int main(int argc, char *argv[]) {
   printf("T = %d\n", T);
   printf("B = %d\n", B);
 
-  printf("\n");
-  for (i = 0; i < T; i++) {
-    for (j = 0; j < TARGET_ARGUMENTS; j++)
-      printf("targets[%d][%d] = %d ", i, j, targets[TARGET_ARGUMENTS * i + j]);
-    printf("\n");
+  battleField = (int **) malloc(sizeof(int *) * N);
+  assert(battleField != NULL);
+
+  for (i = 0; i < N; i++) {
+    battleField[i] = (int *) malloc(sizeof(int) * N);
+    assert(battleField[i] != NULL);
+    for (j = 0; j < N; j++)
+      battleField[i][j] = 0;
   }
 
-  printf("\n");
-  for (i = 0; i < B; i++) {
-    for (j = 0; j < BOMB_ARGUMENTS; j++)
-      printf("bombs[%d][%d] = %d ", i, j, bombs[BOMB_ARGUMENTS * i + j]);
-    printf("\n");
+  for (i = 0; i < T; i++) {
+    battleField[targets[TARGET_ARGUMENTS * i]][targets[TARGET_ARGUMENTS * i + 1]] = targets[TARGET_ARGUMENTS * i + 2];
   }
+
+  // MPI_Init (&argc, &argv);
+  // MPI_Comm_rank (MPI_COMM_WORLD, &yo);
+  // MPI_Comm_size (MPI_COMM_WORLD, &numProcesos);
+  // // printf("holaaaaaaaaaa\n");
+  // // for (i = 0; i < N; i++) {
+  // //   for (j = 0; j < N; j++)
+  // //     printf("%d ",battleField[i][j]);
+  // //   printf("\n");
+  // // }
+  // MPI_Finalize();
+  return 0;
+
 }
 
 /*
@@ -101,6 +117,7 @@ int process_file(char *name) {
       i = 0;
       pos = 0;
       targets = (int *) malloc(sizeof(int) * T * TARGET_ARGUMENTS);
+      assert(targets != NULL);
     } else {
       if (i < T) {
         pos = process_line(targets, line, pos);
@@ -110,6 +127,7 @@ int process_file(char *name) {
         pos = 0;
         B = atoi(line);
         bombs = (int *) malloc(sizeof(int) * B * BOMB_ARGUMENTS);
+        assert(bombs != NULL);
         i++;
       }
       else {
