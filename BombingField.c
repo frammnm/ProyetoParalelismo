@@ -90,16 +90,14 @@ int process_line(int array[], char *line, int pos) {
   token = strtok(line, " ");
   array[i] = atoi(token);
   i++;
-  n = strlen(token);
-  // printf("%d ", n);
-  // printf("%s\n", token);
 
   while (token != NULL) {
     token = strtok(NULL, " ");
     n = strlen(token);
-    string = (char *) malloc(sizeof(char));
-    *string = token[0];
-    array[i] = atoi(string);
+    for (j = 0; j < n; j++)
+      printf("%d ", token[j]);
+    printf("\n");
+    array[i] = atoi(token);
     i++;
   }
 
