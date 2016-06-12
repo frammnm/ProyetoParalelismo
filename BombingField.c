@@ -20,6 +20,7 @@ int *targets;
 int *bombs;
 int **battleField;
 
+char* LastcharDel(char*);
 int process_line(int array[], char *line, int pos);
 int process_file(char *name);
 
@@ -32,6 +33,8 @@ int main(int argc, char *argv[]) {
   int i, j;
   int yo, numProcesos;
 
+  printf("hola\n");
+
   if (argc != 2) {
     printf("Invalid number of arguments!\n");
     return 0;
@@ -40,36 +43,37 @@ int main(int argc, char *argv[]) {
   if (process_file(argv[1]) == -1)
     return 0;
 
-  printf("N = %d\n", N);
-  printf("T = %d\n", T);
-  printf("B = %d\n", B);
+  // printf("N = %d\n", N);
+  // printf("T = %d\n", T);
+  // printf("B = %d\n", B);
 
-  battleField = (int **) malloc(sizeof(int *) * N);
-  assert(battleField != NULL);
+  // battleField = (int **) malloc(sizeof(int *) * N);
+  // assert(battleField != NULL);
 
-  for (i = 0; i < N; i++) {
-    battleField[i] = (int *) malloc(sizeof(int) * N);
-    assert(battleField[i] != NULL);
-    for (j = 0; j < N; j++)
-      battleField[i][j] = 0;
-  }
+  // for (i = 0; i < N; i++) {
+  //   battleField[i] = (int *) malloc(sizeof(int) * N);
+  //   assert(battleField[i] != NULL);
+  //   for (j = 0; j < N; j++)
+  //     battleField[i][j] = 0;
+  // }
 
-  for (i = 0; i < T; i++) {
-    battleField[targets[TARGET_ARGUMENTS * i]][targets[TARGET_ARGUMENTS * i + 1]] = targets[TARGET_ARGUMENTS * i + 2];
-  }
+  // for (i = 0; i < T; i++) {
+  //   battleField[targets[TARGET_ARGUMENTS * i]][targets[TARGET_ARGUMENTS * i + 1]] = targets[TARGET_ARGUMENTS * i + 2];
+  // }
 
-  // MPI_Init (&argc, &argv);
-  // MPI_Comm_rank (MPI_COMM_WORLD, &yo);
-  // MPI_Comm_size (MPI_COMM_WORLD, &numProcesos);
-  // // printf("holaaaaaaaaaa\n");
-  // // for (i = 0; i < N; i++) {
-  // //   for (j = 0; j < N; j++)
-  // //     printf("%d ",battleField[i][j]);
-  // //   printf("\n");
-  // // }
-  // MPI_Finalize();
   return 0;
 
+}
+
+
+char* LastcharDel(char* string) {
+    int i = 0;
+    while(string[i] != '\0') {
+        if (string[i] == '\n')
+          string[i] = '\0';
+        i++;
+    }
+    return string;
 }
 
 /*
@@ -79,15 +83,23 @@ int main(int argc, char *argv[]) {
 */
 int process_line(int array[], char *line, int pos) {
   char *token;
+  char *string;
   int i = pos;
+  int n, j;
 
   token = strtok(line, " ");
   array[i] = atoi(token);
   i++;
+  n = strlen(token);
+  // printf("%d ", n);
+  // printf("%s\n", token);
 
   while (token != NULL) {
     token = strtok(NULL, " ");
-    array[i] = atoi(token);
+    n = strlen(token);
+    string = (char *) malloc(sizeof(char));
+    *string = token[0];
+    array[i] = atoi(string);
     i++;
   }
 
@@ -111,6 +123,7 @@ int process_file(char *name) {
 
   c = 0;
   while (fgets(line, sizeof(line), fp)) {
+    printf("ajajaja\n");
     if (c == 0) N = atoi(line);
     else if (c == 1) {
       T = atoi(line);
