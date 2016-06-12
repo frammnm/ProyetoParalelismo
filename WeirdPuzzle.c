@@ -1,6 +1,6 @@
 int  N, W; 
 int *puzzle;
-int *words; 
+char *words; 
 
 int main(int argc, char *argv[]) {
   int i, j;
@@ -46,6 +46,7 @@ int process_file(char *name) {
   };
 
   c = 0;
+  i = 0; 
   while (fgets(line, sizeof(line), fp)) {
     
     if (c == 0) {
@@ -57,10 +58,11 @@ int process_file(char *name) {
     } 
     else if (c == N ) {
         W = atoi(line);
-        words = (int *) malloc(sizeof(int) * N * N);
+        words = (int *) malloc(sizeof(char) * N * N);
     } 
     else {
-        pos = process_words(words, line);
+        words[i] = line; 
+        i = i + N; 
     } 
     c++;
   };
@@ -85,8 +87,3 @@ int process_line(int array[], char *line, int pos) {
   return i-1;
 }
 
-int process_words(int array[], char *line, int pos){
-
-
-
-}
