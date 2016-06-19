@@ -28,8 +28,8 @@ int process_file(char *name);
 ###############################################################################
 */
 int main(int argc, char *argv[]) {
-  int i, j;
-  int yo, numProcesors;
+  int i, j, source = 0;
+  int me, numProcesors;
   int **battleField;
 
   if (argc != 2) {
@@ -38,65 +38,57 @@ int main(int argc, char *argv[]) {
   }
 
   MPI_Init (&argc, &argv);
-  MPI_Comm_rank (MPI_COMM_WORLD, &yo);
+  MPI_Comm_rank (MPI_COMM_WORLD, &me);
   MPI_Comm_size (MPI_COMM_WORLD, &numProcesors);
  
-  if (yo == 0) {
-    if (process_file(argv[1]) == -1)
-      return 0;
+  if (process_file(argv[1]) == -1)
+    return 0;
 
-    printf("N = %d\n", N);
-    printf("T = %d\n", T);
-    printf("B = %d\n", B);
+  battleField = (int **) malloc(sizeof(int *) * N);
+  assert(battleField != NULL);
 
-    battleField = (int **) malloc(sizeof(int *) * N);
-    assert(battleField != NULL);
-
-    for (i = 0; i < N; i++) {
-      battleField[i] = (int *) malloc(sizeof(int) * N);
-      assert(battleField[i] != NULL);
-      for (j = 0; j < N; j++)
-        battleField[i][j] = 0;
-    }
-
-    for (i = 0; i < T; i++) {
-      battleField[targets[TARGET_ARGUMENTS * i]][targets[TARGET_ARGUMENTS * i + 1]] = targets[TARGET_ARGUMENTS * i + 2];
-    }
-    
-    MPI_Comm_size(MPI_COMM_WORLD, &numProcesors);
-    float partition = B / numProcesors;
-    int count;
-    float old;
-    int total = 0;
-
-    i = 0;
-    old = 0.0;
-    count = partition;
-    while (i < numProcesors) {
-      if (total >= B) printf("count = 0\n");
-      else {
-        if (i == numProcesors - 1) {
-          printf("count = %d\n", B - total);
-        } else {
-          printf("count = %d\n", (int) (count - old));
-          total = total + (int) (count - old);
-          old = (int) (count - old);
-          count = partition + count;
-        }
-      }
-      i++;
-    }
-
-  } else {
-
-    printf("BattleField:\n");
-    printf("%d\n", N);
-    for (i = 0; i < N; i++) {
-        for (j = 0; j < N; j++)
-          printf("%d ", battleField[i][j]);
-        printf("\n");
-    }
+  for (i = 0; i < N; i++) {
+    battleField[i] = (int *) malloc(sizeof(int) * N);
+    assert(battleField[i] != NULL);
+    for (j = 0; j < N; j++)
+      battleField[i][j] = 0;
   }
+
+  for (i = 0; i < T; i++) {
+    battleField[targets[TARGET_ARGUMENTS * i]][targets[TARGET_ARGUMENTS * i + 1]] = targets[TARGET_ARGUMENTS * i + 2];
+  }
+
+  if (me == source) {
+  
+    int numBombsPerProcesor[numProcesors];
+
+    if (B >= numProcesors) {
+      int quotient = B / numProcesors;
+      int rm = B % numProcesors; 
+      printf("rm = %d\n", rm);
+  
+      for (i = 0; i < numProcesors; i++) {
+        if (rm > 0) numBombsPerProcesor[i] = quotient + 1;
+        else numBombsPerProcesor[i] = quotient;
+        rm--;
+        printf("numBombsPerProcesor[%d] = %d\n", i, numBombsPerProcesor[i]);
+      }
+    } else {
+      int numBombs = B;
+
+      for (i = 0; i < numProcesors; i++) {
+        if (numBombs > 0) numBombsPerProcesor[i] = 1;
+        else numBombsPerProcesor[i] = 0;
+        numBombs--;
+        printf("numBombsPerProcesor[%d] = %d\n", i, numBombsPerProcesor[i]);
+      }
+    }
+  
+  }
+
+  free(targets);
+  free(bombs);
+  free(battleField);
 
   MPI_Finalize();
 
@@ -119,19 +111,14 @@ int process_line(int array[], char *line, int pos) {
   array[i] = atoi(token);
   i++;
 
-  string = (char *) malloc(sizeof(char));
-
   while (token != NULL) {
     token = strtok(NULL, " ");
     if (token == NULL) break;
-    *string = token[0];
-    array[i] = atoi(string);
+    array[i] = atoi(token);
     i++;
   }
 
-  free(string);
-
-  return i-1;
+  return i;
 }
 
 /*
