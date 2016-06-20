@@ -19,8 +19,8 @@ int N, T, B;
 int *targets;
 int *bombs;
 
-void explosion(int N, int battleField[N][N], int x, int y, int power);
-void bomb_battlefield(int N, int battleField[N][N], int pos, int numBombs, int me);
+void set_power(int *bomb_power_matrix, int x, int y, int power);
+void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, int me);
 void distribute_work(int info[2], int numProcessors, int me);
 int process_line(int array[], char *line, int pos);
 int process_file(char *name);
@@ -34,6 +34,8 @@ int main(int argc, char *argv[]) {
   int i, j, root = 0;
   int me, numProcessors;
   int info[2];
+  int *bomb_power_matrix;
+  int **battleField;
   MPI_Status status;
 
   if (argc != 2) {
@@ -48,37 +50,61 @@ int main(int argc, char *argv[]) {
   if (process_file(argv[1]) == -1)
     return 0;
 
-  int battleField[N][N];
-
-  for (i = 0; i < N; i++) {
-    for (j = 0; j < N; j++)
-      battleField[i][j] = 0;
-  }
-
-  for (i = 0; i < T; i++) {
-    int x = targets[TARGET_ARGUMENTS * i];
-    int y = targets[TARGET_ARGUMENTS * i + 1];
-    battleField[x][y] = targets[TARGET_ARGUMENTS * i + 2];
-  }
-
   if (me == root) {
+    battleField = (int **) malloc(sizeof(int *) * N);
+    assert(battleField != NULL);
+    for (i = 0; i < N; i++) {
+      battleField[i] = (int *) malloc(sizeof(int) * N);
+      assert(battleField[i] != NULL);
+      for (j = 0; j < N; j++)
+        battleField[i][j] = 0;
+    }
+
+    for (i = 0; i < T; i++) {
+      int x = targets[TARGET_ARGUMENTS * i];
+      int y = targets[TARGET_ARGUMENTS * i + 1];
+      if ((0 <= x) && (x < N) && (0 <= y) && (y < N))
+        battleField[x][y] = targets[TARGET_ARGUMENTS * i + 2];
+    }
+
     distribute_work(info, numProcessors, me);
   } else {
     MPI_Recv(info, 2, MPI_INT, root, 1, MPI_COMM_WORLD, &status);
   }
 
-  bomb_battlefield(N, battleField, info[0], info[1], me);
+  bomb_power_matrix = (int *) malloc(sizeof(int) * N * N);
+  assert(bomb_power_matrix != NULL);
+  memset(bomb_power_matrix, 0, sizeof(int) * N * N);
+
+  get_bomb_power_matrix(bomb_power_matrix, info[0], info[1], me);
 
   if (me == root) {
-    int final_battleField[N*N];
+    int recv_bomb_power_matrix[N*N];
 
     for (i = 1; i < numProcessors; i++) {
-      MPI_Recv(final_battleField, N*N, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
-      suma final_battleField battleField
+      MPI_Recv(recv_bomb_power_matrix, N*N, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
+      // suma received_bomb_power_matrix bomb_power_matrix
+      int k;
+      printf("Recibi:\n");
+      for (j = 0; j < N; j ++){
+        for (k = 0; k < N; k++) {
+          printf("%d ", recv_bomb_power_matrix[j*N + k]);        
+        }
+        printf("\n");
+      }
+      printf("Tengo:\n");
+      for (j = 0; j < N; j ++){
+        for (k = 0; k < N; k++) {
+          printf("%d ", bomb_power_matrix[j*N + k]);        
+        }
+        printf("\n");
+      }
     }
 
   }
 
+  if (me == root) free(battleField);
+  free(bomb_power_matrix);
   free(targets);
   free(bombs);
 
@@ -90,31 +116,22 @@ int main(int argc, char *argv[]) {
 
 /*
 ###############################################################################
-#############################       explosion      ############################
+#############################       set_power      ############################
 ###############################################################################
 */
-void explosion(int N, int battleField[N][N], int x, int y, int power) {
-
+void set_power(int *bomb_power_matrix, int x, int y, int power) {
   if ((0 <= x) && (x < N) && (0 <= y) && (y < N)) {
-    if (battleField[x][y] > 0) {
-      battleField[x][y] -= power;
-      if (battleField[x][y] <= 0) battleField[x][y] = 0;
-    } else if (battleField[x][y] < 0) {
-      battleField[x][y] += power;
-      if (battleField[x][y] >= 0) battleField[x][y] = 0;
-    } else {
-      battleField[x][y] = 0;
-    }
+    bomb_power_matrix[N*x + y] += power;
   }
 }
 
 /*
 ###############################################################################
-#############################   bomb_battleField   ############################
+############################ get_bomb_power_matrix ############################
 ###############################################################################
 */
-void bomb_battlefield(int N, int battleField[N][N], int pos, int numBombs, int me) {
-  int i, j, x , y, radius, power;
+void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, int me) {
+  int i, j, k, x , y, radius, power, r1, r2;
 
   pos = pos / BOMB_ARGUMENTS;
   for (i = pos; i < pos + numBombs; i++) {
@@ -123,16 +140,22 @@ void bomb_battlefield(int N, int battleField[N][N], int pos, int numBombs, int m
     radius = bombs[i*BOMB_ARGUMENTS + 2]; 
     power = bombs[i*BOMB_ARGUMENTS + 3];
 
-    explosion(N, battleField, x, y, power);
-    explosion(N, battleField, x - radius, y, power);
-    explosion(N, battleField, x, y - radius, power);
-    explosion(N, battleField, x - radius, y - radius, power);
-    explosion(N, battleField, x + radius, y, power);
-    explosion(N, battleField, x, y + radius, power);
-    explosion(N, battleField, x + radius, y + radius, power);
+    if (me != 0) {
+      printf("x = %d y = %d radius = %d power = %d\n", x, y, radius, power);
+    }
+
+    r1 = -radius;
+    for (j = 0; j < radius*2 + 1; j++) {
+      r2 = -radius;
+      for (k = 0; k < radius*2 + 1; k++) {
+        set_power(bomb_power_matrix, x + r1, y + r2, power);
+        r2++;
+      }
+      r1++;
+    }
   }
 
-  if (me != 0) MPI_Send(battleField, N*N, MPI_INT, 0, 1, MPI_COMM_WORLD);
+  if (me != 0) MPI_Send(bomb_power_matrix, N*N, MPI_INT, 0, 1, MPI_COMM_WORLD);
 }
 
 /*
