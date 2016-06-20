@@ -19,6 +19,9 @@ int N, T, B;
 int *targets;
 int *bombs;
 
+void explosion(int N, int battleField[N][N], int x, int y, int power);
+void bomb_battlefield(int N, int battleField[N][N], int pos, int numBombs, int me);
+void distribute_work(int info[2], int numProcessors, int me);
 int process_line(int array[], char *line, int pos);
 int process_file(char *name);
 
@@ -28,9 +31,10 @@ int process_file(char *name);
 ###############################################################################
 */
 int main(int argc, char *argv[]) {
-  int i, j, source = 0;
-  int me, numProcesors;
-  int **battleField;
+  int i, j, root = 0;
+  int me, numProcessors;
+  int info[2];
+  MPI_Status status;
 
   if (argc != 2) {
     printf("Invalid number of arguments!\n");
@@ -39,61 +43,141 @@ int main(int argc, char *argv[]) {
 
   MPI_Init (&argc, &argv);
   MPI_Comm_rank (MPI_COMM_WORLD, &me);
-  MPI_Comm_size (MPI_COMM_WORLD, &numProcesors);
- 
+  MPI_Comm_size (MPI_COMM_WORLD, &numProcessors);
+
   if (process_file(argv[1]) == -1)
     return 0;
 
-  battleField = (int **) malloc(sizeof(int *) * N);
-  assert(battleField != NULL);
+  int battleField[N][N];
 
   for (i = 0; i < N; i++) {
-    battleField[i] = (int *) malloc(sizeof(int) * N);
-    assert(battleField[i] != NULL);
     for (j = 0; j < N; j++)
       battleField[i][j] = 0;
   }
 
   for (i = 0; i < T; i++) {
-    battleField[targets[TARGET_ARGUMENTS * i]][targets[TARGET_ARGUMENTS * i + 1]] = targets[TARGET_ARGUMENTS * i + 2];
+    int x = targets[TARGET_ARGUMENTS * i];
+    int y = targets[TARGET_ARGUMENTS * i + 1];
+    battleField[x][y] = targets[TARGET_ARGUMENTS * i + 2];
   }
 
-  if (me == source) {
-  
-    int numBombsPerProcesor[numProcesors];
+  if (me == root) {
+    distribute_work(info, numProcessors, me);
+  } else {
+    MPI_Recv(info, 2, MPI_INT, root, 1, MPI_COMM_WORLD, &status);
+  }
 
-    if (B >= numProcesors) {
-      int quotient = B / numProcesors;
-      int rm = B % numProcesors; 
-      printf("rm = %d\n", rm);
-  
-      for (i = 0; i < numProcesors; i++) {
-        if (rm > 0) numBombsPerProcesor[i] = quotient + 1;
-        else numBombsPerProcesor[i] = quotient;
-        rm--;
-        printf("numBombsPerProcesor[%d] = %d\n", i, numBombsPerProcesor[i]);
-      }
-    } else {
-      int numBombs = B;
+  bomb_battlefield(N, battleField, info[0], info[1], me);
 
-      for (i = 0; i < numProcesors; i++) {
-        if (numBombs > 0) numBombsPerProcesor[i] = 1;
-        else numBombsPerProcesor[i] = 0;
-        numBombs--;
-        printf("numBombsPerProcesor[%d] = %d\n", i, numBombsPerProcesor[i]);
-      }
+  if (me == root) {
+    int final_battleField[N*N];
+
+    for (i = 1; i < numProcessors; i++) {
+      MPI_Recv(final_battleField, N*N, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
+      suma final_battleField battleField
     }
-  
+
   }
 
   free(targets);
   free(bombs);
-  free(battleField);
 
   MPI_Finalize();
 
   return 0;
 
+}
+
+/*
+###############################################################################
+#############################       explosion      ############################
+###############################################################################
+*/
+void explosion(int N, int battleField[N][N], int x, int y, int power) {
+
+  if ((0 <= x) && (x < N) && (0 <= y) && (y < N)) {
+    if (battleField[x][y] > 0) {
+      battleField[x][y] -= power;
+      if (battleField[x][y] <= 0) battleField[x][y] = 0;
+    } else if (battleField[x][y] < 0) {
+      battleField[x][y] += power;
+      if (battleField[x][y] >= 0) battleField[x][y] = 0;
+    } else {
+      battleField[x][y] = 0;
+    }
+  }
+}
+
+/*
+###############################################################################
+#############################   bomb_battleField   ############################
+###############################################################################
+*/
+void bomb_battlefield(int N, int battleField[N][N], int pos, int numBombs, int me) {
+  int i, j, x , y, radius, power;
+
+  pos = pos / BOMB_ARGUMENTS;
+  for (i = pos; i < pos + numBombs; i++) {
+    x = bombs[i*BOMB_ARGUMENTS];
+    y = bombs[i*BOMB_ARGUMENTS + 1];
+    radius = bombs[i*BOMB_ARGUMENTS + 2]; 
+    power = bombs[i*BOMB_ARGUMENTS + 3];
+
+    explosion(N, battleField, x, y, power);
+    explosion(N, battleField, x - radius, y, power);
+    explosion(N, battleField, x, y - radius, power);
+    explosion(N, battleField, x - radius, y - radius, power);
+    explosion(N, battleField, x + radius, y, power);
+    explosion(N, battleField, x, y + radius, power);
+    explosion(N, battleField, x + radius, y + radius, power);
+  }
+
+  if (me != 0) MPI_Send(battleField, N*N, MPI_INT, 0, 1, MPI_COMM_WORLD);
+}
+
+/*
+###############################################################################
+#############################    distribute_work   ############################
+###############################################################################
+*/
+void distribute_work(int info[2], int numProcessors, int me) {
+    int numBombsPerProcessor[numProcessors];
+    int pos = 0;
+    int i = 0;
+
+    // Send the number of bombs each processor will handle.
+    if (B >= numProcessors) { // Number of bombs >= number of processors. 
+      int quotient = B / numProcessors;
+      int rm = B % numProcessors;
+  
+      for (i = 0; i < numProcessors; i++) {
+        if (rm > 0) numBombsPerProcessor[i] = quotient + 1;
+        else numBombsPerProcessor[i] = quotient;
+        rm--;
+        if (i > 0) {
+          info[0] = pos;
+          info[1] = numBombsPerProcessor[i];
+          MPI_Send(info, 2, MPI_INT, i, 1, MPI_COMM_WORLD);
+          pos = pos + numBombsPerProcessor[i]*BOMB_ARGUMENTS;
+        }
+      }
+    } else { // Number of bombs < number of processors.
+      int numBombs = B;
+
+      for (i = 0; i < numProcessors; i++) {
+        if (numBombs > 0) numBombsPerProcessor[i] = 1;
+        else numBombsPerProcessor[i] = 0;
+        numBombs--;
+        if (i > 0) {
+          info[0] = pos;
+          info[1] = numBombsPerProcessor[i];
+          MPI_Send(info, 2, MPI_INT, i, 1, MPI_COMM_WORLD);
+          pos = pos + numBombsPerProcessor[i]*BOMB_ARGUMENTS;
+        }
+      }
+    }
+    info[0] = pos;
+    info[1] = numBombsPerProcessor[0];
 }
 
 /*
