@@ -78,29 +78,64 @@ int main(int argc, char *argv[]) {
 
   get_bomb_power_matrix(bomb_power_matrix, info[0], info[1], me);
 
+  int sendcounts[numProcessors];
+  int quotient = (N * N) / numProcessors;
+  int rm = (N * N) % numProcessors;
+  int displs[numProcessors];
+  int sum = 0;
+
+  for (i = 0; i < numProcessors; i++) {
+    if (rm > 0) sendcounts[i] = quotient + 1;
+    else sendcounts[i] = quotient;
+    rm--;
+    displs[i] = sum;
+    sum += sendcounts[i];
+  }
+
+  int bomb_power_matrices[numProcessors][N*N];
+
   if (me == root) {
-    int recv_bomb_power_matrix[N*N];
+    int prueba[N*N];
+    for (j = 0; j < N * N; j++)
+        prueba[j] = 0;
 
     for (i = 1; i < numProcessors; i++) {
-      MPI_Recv(recv_bomb_power_matrix, N*N, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
-      // suma received_bomb_power_matrix bomb_power_matrix
-      int k;
-      printf("Recibi:\n");
-      for (j = 0; j < N; j ++){
-        for (k = 0; k < N; k++) {
-          printf("%d ", recv_bomb_power_matrix[j*N + k]);        
-        }
-        printf("\n");
-      }
-      printf("Tengo:\n");
-      for (j = 0; j < N; j ++){
-        for (k = 0; k < N; k++) {
-          printf("%d ", bomb_power_matrix[j*N + k]);        
-        }
-        printf("\n");
-      }
+      MPI_Recv(bomb_power_matrices[i], N*N, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
+      for (j = 0; j < N * N; j++)
+        prueba[j] += bomb_power_matrices[i][j];
+    }
+    for (i = 0; i < N * N; i++) {
+      bomb_power_matrices[0][i] = bomb_power_matrix[i];
+      prueba[i] += bomb_power_matrix[i];
+    }
+    for (i = 0; i < N; i++){
+      for (j = 0; j < N; j++)
+        printf("%d ", prueba[i*N+j]);
+      printf("\n");
     }
 
+  }
+
+  int recv_array[numProcessors][sendcounts[me]];
+
+  for (i = 0; i < numProcessors; i++)
+    MPI_Scatterv(&bomb_power_matrices[i], sendcounts, displs, MPI_INT, recv_array[i], sendcounts[me], MPI_INT, root, MPI_COMM_WORLD);
+
+  for (i = 0; i < sendcounts[me]; i++) {
+    sum = 0;
+    for (j = 0; j < numProcessors; j++) 
+      sum += recv_array[j][i];
+    recv_array[0][i] = sum;
+  }
+
+  MPI_Gatherv(&recv_array[0], sendcounts[me], MPI_INT, bomb_power_matrix, sendcounts, displs, MPI_INT, root, MPI_COMM_WORLD);
+
+  if (me == root) {
+    for (i = 0; i < N; i++){
+      for (j = 0; j < N; j++)
+        printf("%d ", bomb_power_matrix[i*N+j]);
+      printf("\n");
+    }
   }
 
   if (me == root) free(battleField);
@@ -130,8 +165,10 @@ void set_power(int *bomb_power_matrix, int x, int y, int power) {
 ############################ get_bomb_power_matrix ############################
 ###############################################################################
 */
-void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, int me) {
+void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, 
+                           int me) {
   int i, j, k, x , y, radius, power, r1, r2;
+  MPI_Request request;
 
   pos = pos / BOMB_ARGUMENTS;
   for (i = pos; i < pos + numBombs; i++) {
@@ -139,10 +176,6 @@ void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, int me
     y = bombs[i*BOMB_ARGUMENTS + 1];
     radius = bombs[i*BOMB_ARGUMENTS + 2]; 
     power = bombs[i*BOMB_ARGUMENTS + 3];
-
-    if (me != 0) {
-      printf("x = %d y = %d radius = %d power = %d\n", x, y, radius, power);
-    }
 
     r1 = -radius;
     for (j = 0; j < radius*2 + 1; j++) {
@@ -155,7 +188,7 @@ void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, int me
     }
   }
 
-  if (me != 0) MPI_Send(bomb_power_matrix, N*N, MPI_INT, 0, 1, MPI_COMM_WORLD);
+  if (me != 0) MPI_Isend(bomb_power_matrix, N*N, MPI_INT, 0, 1, MPI_COMM_WORLD, &request);
 }
 
 /*
