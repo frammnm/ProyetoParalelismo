@@ -19,6 +19,8 @@ int N, T, B;
 int *targets;
 int *bombs;
 
+void battleField_explosion(int *results, int *battleField, int *bomb_power_matrix, 
+                           int work, int displ, int me);
 void set_power(int *bomb_power_matrix, int x, int y, int power);
 void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, int me);
 void distribute_work(int info[2], int numProcessors, int me);
@@ -35,7 +37,7 @@ int main(int argc, char *argv[]) {
   int me, numProcessors;
   int info[2];
   int *bomb_power_matrix;
-  int **battleField;
+  int *battleField;
   MPI_Status status;
 
   if (argc != 2) {
@@ -50,23 +52,20 @@ int main(int argc, char *argv[]) {
   if (process_file(argv[1]) == -1)
     return 0;
 
+  battleField = (int *) malloc(sizeof(int *) * N * N);
+  assert(battleField != NULL);
+  for (i = 0; i < N; i++) {
+    for (j = 0; j < N; j++)
+      battleField[i*N + j] = 0;
+  }
+  for (i = 0; i < T; i++) {
+    int x = targets[TARGET_ARGUMENTS * i];
+    int y = targets[TARGET_ARGUMENTS * i + 1];
+    if ((0 <= x) && (x < N) && (0 <= y) && (y < N))
+      battleField[x*N + y] = targets[TARGET_ARGUMENTS * i + 2];
+  }
+
   if (me == root) {
-    battleField = (int **) malloc(sizeof(int *) * N);
-    assert(battleField != NULL);
-    for (i = 0; i < N; i++) {
-      battleField[i] = (int *) malloc(sizeof(int) * N);
-      assert(battleField[i] != NULL);
-      for (j = 0; j < N; j++)
-        battleField[i][j] = 0;
-    }
-
-    for (i = 0; i < T; i++) {
-      int x = targets[TARGET_ARGUMENTS * i];
-      int y = targets[TARGET_ARGUMENTS * i + 1];
-      if ((0 <= x) && (x < N) && (0 <= y) && (y < N))
-        battleField[x][y] = targets[TARGET_ARGUMENTS * i + 2];
-    }
-
     distribute_work(info, numProcessors, me);
   } else {
     MPI_Recv(info, 2, MPI_INT, root, 1, MPI_COMM_WORLD, &status);
@@ -95,31 +94,35 @@ int main(int argc, char *argv[]) {
   int bomb_power_matrices[numProcessors][N*N];
 
   if (me == root) {
-    int prueba[N*N];
-    for (j = 0; j < N * N; j++)
-        prueba[j] = 0;
+    // int prueba[N*N];
+    // for (j = 0; j < N * N; j++)
+    //     prueba[j] = 0;
 
     for (i = 1; i < numProcessors; i++) {
-      MPI_Recv(bomb_power_matrices[i], N*N, MPI_INT, i, 1, MPI_COMM_WORLD, &status);
-      for (j = 0; j < N * N; j++)
-        prueba[j] += bomb_power_matrices[i][j];
+      MPI_Recv(bomb_power_matrices[i], N*N, MPI_INT, i, 1, MPI_COMM_WORLD, 
+               &status);
+      // for (j = 0; j < N * N; j++)
+      //   prueba[j] += bomb_power_matrices[i][j];
     }
     for (i = 0; i < N * N; i++) {
       bomb_power_matrices[0][i] = bomb_power_matrix[i];
-      prueba[i] += bomb_power_matrix[i];
+      //prueba[i] += bomb_power_matrix[i];
     }
-    for (i = 0; i < N; i++){
-      for (j = 0; j < N; j++)
-        printf("%d ", prueba[i*N+j]);
-      printf("\n");
-    }
+    // printf("Secuencial:\n");
+    // for (i = 0; i < N; i++){
+    //   for (j = 0; j < N; j++)
+    //     printf("%d ", prueba[i*N+j]);
+    //   printf("\n");
+    // }
 
   }
 
   int recv_array[numProcessors][sendcounts[me]];
 
   for (i = 0; i < numProcessors; i++)
-    MPI_Scatterv(&bomb_power_matrices[i], sendcounts, displs, MPI_INT, recv_array[i], sendcounts[me], MPI_INT, root, MPI_COMM_WORLD);
+    MPI_Scatterv(&bomb_power_matrices[i], sendcounts, displs, MPI_INT, 
+                 recv_array[i], sendcounts[me], MPI_INT, root, 
+                 MPI_COMM_WORLD);
 
   for (i = 0; i < sendcounts[me]; i++) {
     sum = 0;
@@ -128,17 +131,49 @@ int main(int argc, char *argv[]) {
     recv_array[0][i] = sum;
   }
 
-  MPI_Gatherv(&recv_array[0], sendcounts[me], MPI_INT, bomb_power_matrix, sendcounts, displs, MPI_INT, root, MPI_COMM_WORLD);
+  MPI_Allgatherv(&recv_array[0], sendcounts[me], MPI_INT, bomb_power_matrix, 
+                 sendcounts, displs, MPI_INT, MPI_COMM_WORLD);
+
+  // if (me == root) {
+  //   printf("Paralelizada:\n");
+  //   for (i = 0; i < N; i++){
+  //     for (j = 0; j < N; j++)
+  //       printf("%d ", bomb_power_matrix[i*N+j]);
+  //     printf("\n");
+  //   }
+  //   printf("battleField:\n");
+  //   for (i = 0; i < N; i++){
+  //     for (j = 0; j < N; j++)
+  //       printf("%d ", battleField[i*N+j]);
+  //     printf("\n");
+  //   }
+  // }
+
+  int *results;
+
+  results = (int *) malloc(sizeof(int) * 6);
+
+  battleField_explosion(results, battleField, bomb_power_matrix, sendcounts[me], 
+                        displs[me], me);
 
   if (me == root) {
-    for (i = 0; i < N; i++){
-      for (j = 0; j < N; j++)
-        printf("%d ", bomb_power_matrix[i*N+j]);
-      printf("\n");
+    int recv_results[6];
+    for (i = 1; i < numProcessors; i++) {
+      MPI_Recv(recv_results, 6, MPI_INT, i, 1, MPI_COMM_WORLD, 
+               &status);
+      for (j = 0; j < 6; j++)
+        results[j] += recv_results[j];
     }
+    printf("Military Targets totally destroyed: %d\n", results[0]);
+    printf("Military Targets partially destroyed: %d\n", results[1]);
+    printf("Military Targets not affected: %d\n", results[2]);
+    printf("Civilian Targets totally destroyed: %d\n", results[3]);
+    printf("Civilian Targets partially destroyed: %d\n", results[4]);
+    printf("Civilian Targets not affected: %d\n", results[5]);
   }
 
-  if (me == root) free(battleField);
+  free(results);
+  free(battleField);
   free(bomb_power_matrix);
   free(targets);
   free(bombs);
@@ -147,6 +182,38 @@ int main(int argc, char *argv[]) {
 
   return 0;
 
+}
+
+/*
+###############################################################################
+############################  battleField_explosion  ##########################
+###############################################################################
+*/
+void battleField_explosion(int *results, int *battleField, int *bomb_power_matrix, 
+                           int work, int displ, int me) {
+  int i, j;
+  int MT_totallyDestroyed = 0, MT_partiallyDestroyed = 0, MT_notTouched = 0;
+  int CT_totallyDestroyed = 0, CT_partiallyDestroyed = 0, CT_notTouched = 0;
+
+  for (i = displ; i < displ + work; i++) {
+    if (battleField[i] < 0) {
+      if (bomb_power_matrix[i] > -1*(battleField[i])) MT_totallyDestroyed += 1;
+      else if (bomb_power_matrix[i] < -1*(battleField[i])) MT_partiallyDestroyed += 1;
+      else if (bomb_power_matrix[i] == 0) MT_notTouched += 1;
+    } else if (battleField[i] > 0) {
+      if (bomb_power_matrix[i] > battleField[i]) CT_totallyDestroyed += 1;
+      else if (bomb_power_matrix[i] < battleField[i]) CT_partiallyDestroyed += 1;
+      else if (bomb_power_matrix[i] == 0) CT_notTouched += 1;
+    }
+  }
+  results[0] = MT_totallyDestroyed;
+  results[1] = MT_partiallyDestroyed;
+  results[2] = MT_notTouched;
+  results[3] = CT_totallyDestroyed;
+  results[4] = CT_partiallyDestroyed;
+  results[5] = CT_notTouched;
+
+  if (me != 0) MPI_Send(results, 6, MPI_INT, 0, 1, MPI_COMM_WORLD);
 }
 
 /*
@@ -168,7 +235,6 @@ void set_power(int *bomb_power_matrix, int x, int y, int power) {
 void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, 
                            int me) {
   int i, j, k, x , y, radius, power, r1, r2;
-  MPI_Request request;
 
   pos = pos / BOMB_ARGUMENTS;
   for (i = pos; i < pos + numBombs; i++) {
@@ -188,7 +254,7 @@ void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs,
     }
   }
 
-  if (me != 0) MPI_Isend(bomb_power_matrix, N*N, MPI_INT, 0, 1, MPI_COMM_WORLD, &request);
+  if (me != 0) MPI_Send(bomb_power_matrix, N*N, MPI_INT, 0, 1, MPI_COMM_WORLD);
 }
 
 /*
