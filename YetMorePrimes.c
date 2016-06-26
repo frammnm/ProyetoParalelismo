@@ -19,6 +19,8 @@ char **secondHalf;
 void free_array_of_strings(char **strings);
 int is_prime(int number);
 void generate_primes(int info[2], int me, int *primes);
+void merge(int *a, int *b, int l, int m, int r);
+void mergeSort(int *a, int *b, int l, int r);
 void distribute_work(int info[2], int numProcessors, int me);
 int process_file(char *name);
 
@@ -50,22 +52,12 @@ int main(int argc, char *argv[]) {
   }
 
   if (P < numProcessors) {
-    printf("The number of primes is less than the number of processors, finalizing.\n");
+    printf("The number of primes is less than the number of processors!\n");
     MPI_Finalize();
     return 0;
   }
 
   if (me == root) { 
-    printf("firstHalf:\n");
-    for (i = 0; i < P; i++) {
-      printf("%s\n", firstHalf[i]);
-    }
-
-    printf("secondHalf:\n");
-    for (i = 0; i < P; i++) {
-      printf("%s\n", secondHalf[i]);
-    }
-    printf("\n");
     distribute_work(info, numProcessors, me);
   } else {
     MPI_Recv(info, 2, MPI_INT, root, 1, MPI_COMM_WORLD, &status);
@@ -96,11 +88,49 @@ int main(int argc, char *argv[]) {
           k++;
         };
     }
-
-    for (i = 0; i < P; i++)
-      printf("%d\n", generated_primes[i]);
   }
 
+  int sendcounts[numProcessors];
+  int quotient = P / numProcessors;
+  int rm = P % numProcessors;
+  int displs[numProcessors];
+  int sum = 0;
+
+  for (i = 0; i < numProcessors; i++) {
+    if (rm > 0) sendcounts[i] = quotient + 1;
+    else sendcounts[i] = quotient;
+    rm--;
+    displs[i] = sum;
+    sum += sendcounts[i];
+  }
+
+  int *sub_primes = (int *) malloc(sizeof(int) * sendcounts[me]);
+  assert(sub_primes != NULL);
+
+  MPI_Scatterv(generated_primes, sendcounts, displs, MPI_INT, 
+               sub_primes, sendcounts[me], MPI_INT, root, 
+               MPI_COMM_WORLD);
+
+  int *temp_array = (int *) malloc(sizeof(int) * sendcounts[me]);
+  assert(temp_array != NULL);
+
+  mergeSort(sub_primes, temp_array, 0, (sendcounts[me] - 1));
+  
+  MPI_Gatherv(sub_primes, sendcounts[me], MPI_INT, generated_primes, 
+              sendcounts, displs, MPI_INT, root, MPI_COMM_WORLD);
+
+  if (me == root) {
+    int *sorted_primes = malloc(sizeof(int) * P);
+    mergeSort(generated_primes, sorted_primes, 0, (P - 1));
+
+    printf("\n");
+    for(i = 0; i < P; i++)
+      printf("%d\n", sorted_primes[i]);
+    printf("\n");
+    free(sorted_primes);
+  }
+
+  free(sub_primes);
   free(primes);
   free_array_of_strings(firstHalf);
   free_array_of_strings(secondHalf);
@@ -160,6 +190,60 @@ void generate_primes(int info[2], int me, int *primes) {
     }
   }
   if (me != 0) MPI_Send(primes, P, MPI_INT, 0, 1, MPI_COMM_WORLD);
+}
+
+/*
+###############################################################################
+#############################         merge        ############################
+###############################################################################
+*/
+void merge(int *a, int *b, int l, int m, int r) {
+  int h, i, j, k;
+  
+  h = l;
+  i = l;
+  j = m + 1;
+  while ((h <= m) && (j <= r)) {
+    if (a[h] <= a[j]) {
+      b[i] = a[h];
+      h++;
+    } else {
+      b[i] = a[j];
+      j++;
+    }
+    i++;
+  }
+    
+  if (m < h) {
+    for(k = j; k <= r; k++) {
+      b[i] = a[k];
+      i++;
+    }
+  } else {
+    for (k = h; k <= m; k++) {
+      b[i] = a[k];
+      i++;
+    }
+  }
+  for (k = l; k <= r; k++) {
+    a[k] = b[k];
+  }
+}
+
+/*
+###############################################################################
+#############################       mergeSort      ############################
+###############################################################################
+*/
+void mergeSort(int *a, int *b, int l, int r) {
+  int m;
+  
+  if (l < r) {
+    m = (l + r)/2;
+    mergeSort(a, b, l, m);
+    mergeSort(a, b, (m + 1), r);
+    merge(a, b, l, m, r);
+  }
 }
 
 /*

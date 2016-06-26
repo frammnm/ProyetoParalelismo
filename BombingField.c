@@ -1,4 +1,4 @@
-/* Archivo: BombingField.c
+/* Archivo: battleField.c
  * Contiene toda la funcionalidad para el ejercicio A del proyecto.
  * Autores: 
    - Francisco Martinez  09-10502
@@ -18,7 +18,7 @@ int N, T, B;
 int *targets;
 int *bombs;
 
-void bombingField_explosion(int *results, int *bombingField, int *bomb_power_matrix, 
+void battleField_explosion(int *results, int *battleField, int *bomb_power_matrix, 
                            int work, int displ, int me);
 void set_power(int *bomb_power_matrix, int x, int y, int power);
 void get_bomb_power_matrix(int *bomb_power_matrix, int pos, int numBombs, int me);
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
   int me, numProcessors;
   int info[2];
   int *bomb_power_matrix;
-  int *bombingField;
+  int *battleField;
   MPI_Status status;
 
   if (argc != 2) {
@@ -53,17 +53,23 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  bombingField = (int *) malloc(sizeof(int *) * N * N);
-  assert(bombingField != NULL);
+  if (N < numProcessors) {
+    printf("The size N of the battle field is less than the number of processors!\n");
+    MPI_Finalize();
+    return 0;
+  }
+
+  battleField = (int *) malloc(sizeof(int *) * N * N);
+  assert(battleField != NULL);
   for (i = 0; i < N; i++) {
     for (j = 0; j < N; j++)
-      bombingField[i*N + j] = 0;
+      battleField[i*N + j] = 0;
   }
   for (i = 0; i < T; i++) {
     int x = targets[TARGET_ARGUMENTS * i];
     int y = targets[TARGET_ARGUMENTS * i + 1];
     if ((0 <= x) && (x < N) && (0 <= y) && (y < N))
-      bombingField[x*N + y] = targets[TARGET_ARGUMENTS * i + 2];
+      battleField[x*N + y] = targets[TARGET_ARGUMENTS * i + 2];
   }
 
   if (me == root) {
@@ -125,7 +131,7 @@ int main(int argc, char *argv[]) {
 
   results = (int *) malloc(sizeof(int) * 6);
 
-  bombingField_explosion(results, bombingField, bomb_power_matrix, sendcounts[me], 
+  battleField_explosion(results, battleField, bomb_power_matrix, sendcounts[me], 
                         displs[me], me);
 
   if (me == root) {
@@ -145,7 +151,7 @@ int main(int argc, char *argv[]) {
   }
 
   free(results);
-  free(bombingField);
+  free(battleField);
   free(bomb_power_matrix);
   free(targets);
   free(bombs);
@@ -158,23 +164,23 @@ int main(int argc, char *argv[]) {
 
 /*
 ###############################################################################
-############################  bombingField_explosion  ##########################
+############################  battleField_explosion  ##########################
 ###############################################################################
 */
-void bombingField_explosion(int *results, int *bombingField, int *bomb_power_matrix, 
+void battleField_explosion(int *results, int *battleField, int *bomb_power_matrix, 
                            int work, int displ, int me) {
   int i, j;
   int MT_totallyDestroyed = 0, MT_partiallyDestroyed = 0, MT_notTouched = 0;
   int CT_totallyDestroyed = 0, CT_partiallyDestroyed = 0, CT_notTouched = 0;
 
   for (i = displ; i < displ + work; i++) {
-    if (bombingField[i] < 0) {
-      if (bomb_power_matrix[i] > -1*(bombingField[i])) MT_totallyDestroyed += 1;
-      else if (bomb_power_matrix[i] < -1*(bombingField[i])) MT_partiallyDestroyed += 1;
+    if (battleField[i] < 0) {
+      if (bomb_power_matrix[i] > -1*(battleField[i])) MT_totallyDestroyed += 1;
+      else if (bomb_power_matrix[i] < -1*(battleField[i])) MT_partiallyDestroyed += 1;
       else if (bomb_power_matrix[i] == 0) MT_notTouched += 1;
-    } else if (bombingField[i] > 0) {
-      if (bomb_power_matrix[i] > bombingField[i]) CT_totallyDestroyed += 1;
-      else if (bomb_power_matrix[i] < bombingField[i]) CT_partiallyDestroyed += 1;
+    } else if (battleField[i] > 0) {
+      if (bomb_power_matrix[i] > battleField[i]) CT_totallyDestroyed += 1;
+      else if (bomb_power_matrix[i] < battleField[i]) CT_partiallyDestroyed += 1;
       else if (bomb_power_matrix[i] == 0) CT_notTouched += 1;
     }
   }
