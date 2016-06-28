@@ -1,4 +1,4 @@
-/* Archivo: BombingField.c
+/* Archivo: battleField.c
  * Contiene toda la funcionalidad para el ejercicio A del proyecto.
  * Autores: 
    - Francisco Martinez  09-10502
@@ -10,7 +10,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/time.h>
 #include <string.h>
 #include <assert.h>
 #include "mpi.h"
@@ -49,8 +48,16 @@ int main(int argc, char *argv[]) {
   MPI_Comm_rank (MPI_COMM_WORLD, &me);
   MPI_Comm_size (MPI_COMM_WORLD, &numProcessors);
 
-  if (process_file(argv[1]) == -1)
+  if (process_file(argv[1]) == -1) {
+    MPI_Finalize();
     return 0;
+  }
+
+  if (N < numProcessors) {
+    printf("The size N of the battle field is less than the number of processors!\n");
+    MPI_Finalize();
+    return 0;
+  }
 
   battleField = (int *) malloc(sizeof(int *) * N * N);
   assert(battleField != NULL);
@@ -94,27 +101,13 @@ int main(int argc, char *argv[]) {
   int bomb_power_matrices[numProcessors][N*N];
 
   if (me == root) {
-    // int prueba[N*N];
-    // for (j = 0; j < N * N; j++)
-    //     prueba[j] = 0;
-
     for (i = 1; i < numProcessors; i++) {
       MPI_Recv(bomb_power_matrices[i], N*N, MPI_INT, i, 1, MPI_COMM_WORLD, 
                &status);
-      // for (j = 0; j < N * N; j++)
-      //   prueba[j] += bomb_power_matrices[i][j];
     }
     for (i = 0; i < N * N; i++) {
       bomb_power_matrices[0][i] = bomb_power_matrix[i];
-      //prueba[i] += bomb_power_matrix[i];
     }
-    // printf("Secuencial:\n");
-    // for (i = 0; i < N; i++){
-    //   for (j = 0; j < N; j++)
-    //     printf("%d ", prueba[i*N+j]);
-    //   printf("\n");
-    // }
-
   }
 
   int recv_array[numProcessors][sendcounts[me]];
@@ -133,21 +126,6 @@ int main(int argc, char *argv[]) {
 
   MPI_Allgatherv(&recv_array[0], sendcounts[me], MPI_INT, bomb_power_matrix, 
                  sendcounts, displs, MPI_INT, MPI_COMM_WORLD);
-
-  // if (me == root) {
-  //   printf("Paralelizada:\n");
-  //   for (i = 0; i < N; i++){
-  //     for (j = 0; j < N; j++)
-  //       printf("%d ", bomb_power_matrix[i*N+j]);
-  //     printf("\n");
-  //   }
-  //   printf("battleField:\n");
-  //   for (i = 0; i < N; i++){
-  //     for (j = 0; j < N; j++)
-  //       printf("%d ", battleField[i*N+j]);
-  //     printf("\n");
-  //   }
-  // }
 
   int *results;
 
